@@ -1,0 +1,61 @@
+---
+title: "Cluster Hierárquico 2"
+author: "Caroline Hernandes Monteiro"
+date: "16/06/2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(dendextend)
+library(factoextra)
+library(fpc)
+library(gridExtra)
+library(readxl)
+```
+
+
+```{r}
+mcdonalds <- read.table("dados/MCDONALDS.csv", sep = ";", dec = ",", header = T)
+rownames(mcdonalds) <- mcdonalds[,1]
+mcdonalds <- mcdonalds[,-1]
+mcdonalds.padronizado <- scale(mcdonalds)
+distancia <- dist(mcdonalds.padronizado, method = "euclidean")
+```
+
+Para usar cluster, as variáveis devem estar na mesma escala (antes do cálculo da distância euclidiana), dessa forma, é utilizada a função scale, que padroniza as variáveis.
+
+
+```{r}
+cluster.hierarquico <- hclust(distancia, method = "single" )
+plot(cluster.hierarquico, cex = 0.6, hang = -1)
+rect.hclust(cluster.hierarquico, k = 2) #dois grupos
+fviz_nbclust(mcdonalds.padronizado, FUN = hcut, method = "wss")
+```
+
+Utilizando o método "elbow" para escolher o melhor número de clusters, observa-se que não existe um grande ganho a partir de 4 clusters.
+
+
+```{r}
+grupo4 <- cutree(cluster.hierarquico, k = 4)
+table(grupo4)
+Grupos <- data.frame(grupo4)
+BaseFinal <- cbind(mcdonalds, Grupos)
+
+mediagrupos <- BaseFinal %>% 
+  group_by(grupo4) %>% 
+  summarise(n = n(),
+            Valor.Energetico = mean(Valor.Energetico), 
+            Carboidratos = mean(Carboidratos), 
+            Proteinas = mean(Proteinas),
+            Gorduras.Totais = mean(Gorduras.Totais), 
+            Gorduras.Saturadas = mean(Gorduras.Saturadas), 
+            Gorduras.Trans = mean(Gorduras.Trans),
+            Colesterol = mean(Colesterol), 
+            Fibra.Alimentar = mean(Fibra.Alimentar), 
+            Sodio = mean(Sodio),
+            Calcio = mean(Calcio), 
+            Ferro = mean(Ferro))
+```
+
