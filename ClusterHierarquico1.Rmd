@@ -1,0 +1,86 @@
+---
+title: "Cluster Hierárquico 1"
+author: "Caroline Hernandes Monteiro"
+date: "07/09/2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(dendextend)
+library(factoextra)
+library(fpc)
+library(gridExtra)
+library(readxl)
+```
+
+
+```{r}
+alunos_pap <- read.table("dados/alunos_pap.csv", sep = ";", header = T, dec = ",")
+rownames(alunos_pap) <- alunos_pap[,1] #nome da linha passa a ser a primeira coluna
+alunos_pap <- alunos_pap[,-1]
+d <- dist(alunos_pap, method = "euclidean")
+```
+
+
+Definindo o cluster a partir do método escolhido e desenhando o dendograma:
+
+```{r}
+clusterhier1 <- hclust(d, method = "single" )
+clusterhier2 <- hclust(d, method = "complete" )
+clusterhier3 <- hclust(d, method = "average" )
+clusterhier4 <- hclust(d, method = "ward.D" )
+
+plot(clusterhier1, cex = 0.6, hang = -1)
+plot(clusterhier2, cex = 0.6, hang = -1)
+plot(clusterhier3, cex = 0.6, hang = -1)
+plot(clusterhier4, cex = 0.6, hang = -1)
+
+rect.hclust(clusterhier94, k = 2) #corte para dois grupos (k = 2)
+```
+
+
+Comparando os métodos single e complete através dos dendogramas
+
+```{r}
+dendograma1 <- as.dendrogram(clusterhier1)
+dendograma2 <- as.dendrogram(clusterhier2)
+dend_list <- dendlist(dendograma1, dendograma2)
+tanglegram(dendograma1, dendograma2, main = paste("Emaranhado =", round(entanglement(dend_list), 2)))
+```
+
+Quanto menor o emaranhado, mais iguais os dendogramas.
+
+
+Comparando os métodos average e ward através dos dendogramas
+
+```{r}
+dendograma3 <- as.dendrogram(clusterhier3)
+dendograma4 <- as.dendrogram(clusterhier4)
+dend_list2 <- dendlist(dendograma3, dendograma4)
+tanglegram(dendograma3, dendograma4, main = paste("Emaranhado =", round(entanglement(dend_list2), 2)))
+```
+
+
+Usando a função cutree com k = 2 para criar dois grupos
+
+```{r}
+grupo_alunos <- cutree(clusterhier4, k = 2)
+table(grupo_alunos)
+gruposAlunos <- data.frame(grupo_alunos)
+
+Base_alunos_final <- cbind(alunos_pap, gruposAlunos)
+```
+
+
+Análise Descritiva:
+
+```{r}
+mediagrupo_alunos <- Base_alunos_final %>% 
+  group_by(grupo_alunos) %>% 
+  summarise(n = n(),
+            Portugues = mean(Portugues), 
+            Matematica = mean(Matematica))
+```
+
