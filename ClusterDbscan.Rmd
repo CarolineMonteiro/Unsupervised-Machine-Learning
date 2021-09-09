@@ -1,0 +1,49 @@
+---
+title: "Cluster não Hierárquico"
+author: "Caroline Hernandes Monteiro"
+date: "08/09/2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(dendextend)
+library(factoextra)
+library(fpc)
+library(gridExtra)
+library(readxl)
+```
+
+
+```{r}
+notas_categ <- as.data.frame(read_excel("dados/notas_categ.xlsx"))
+
+notas_alunos <- notas_categ %>% 
+  select(Estudante, Atuaria, Mkt)
+
+notas_alunos %>% ggplot() +
+  geom_point(aes(x = Atuaria,
+                 y = Mkt),
+             size = 3)
+
+rownames(notas_alunos) <- notas_alunos[,1]
+notas_alunos <- notas_alunos[,-1]
+notas_alunos_pad <- scale(notas_alunos)
+```
+
+
+Usando o método Dbscan, que é baseado na proximidade dos dados com 3 clusters (os dados precisam estar padronizados, então foi usada a função scale):
+
+```{r}
+dbscan <- fpc::dbscan(notas_alunos_pad,eps = 0.56, MinPts = 3)
+notas_alunos_final <- notas_alunos
+notas_alunos_final$dbscan <- dbscan$cluster
+
+notas_alunos_final %>% ggplot() +
+  geom_point(aes(x = Atuaria,
+                 y = Mkt,
+                 color = as.factor(dbscan)),
+             size = 3)
+```
+
