@@ -1,0 +1,128 @@
+---
+title: "Análise de Correspondências Simples"
+author: "Caroline Hernandes Monteiro"
+date: "20/07/2021"
+output: pdf_document
+---
+
+A análise de correspondências simples ou múltipla é uma técnica adequada para dados qualitativos. Se o número de variáveis de interesse for igual a 2, a Análise de Correspondências Simples (ANACOR) é utilizada; quando o número de variáveis de interesse for maior do que 2, será utilizada a Análise de Correspondências Múltiplas (ACM).
+
+A ideia é estudar as relações de interdependência em razão das associações entre as categorias das variáveis de interesse.
+
+```{r}
+library(tidyverse)
+library(plotly)
+library(ggrepel)
+library(reshape2)
+library(sjPlot)
+library(FactoMineR)
+library(knitr)
+library(kableExtra)
+library(factoextra)
+library(viridis)
+library(plot3D)
+library(gifski)
+library(gganimate)
+```
+
+
+```{r}
+load("covid_america_weekly.RData")
+
+covid_america_weekly %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = TRUE, 
+                font_size = 12)
+```
+
+
+Criando uma tabela de contingências:
+
+```{r}
+tab <- table(covid_america_weekly$country, 
+             covid_america_weekly$lethality_Q5)
+
+qui2_covid <- chisq.test(tab)
+
+data.frame(qui2_covid$stdres) %>%
+  rename(country = 1,
+         let_q5 = 2) %>% 
+  ggplot(aes(x = country, y = let_q5, fill = Freq, label = round(Freq,3))) +
+  geom_tile() +
+  geom_text(size = 3, angle = 90) +
+  scale_fill_gradient2(low = "#440154FF", 
+                       mid = "white", 
+                       high = "#FDE725FF",
+                       midpoint = 0) +
+  labs(x = NULL, y = NULL) +
+  theme(legend.title = element_blank(), 
+        panel.background = element_rect("white"),
+        legend.position = "none",
+        axis.text.x = element_text(angle = 90))
+```
+
+Como o p-valor do teste Chi-quadrado é menor que 0.05, rejeita-se H0 e portanto, as duas variáveis categóricas não se associam de forma aleatória e podemos usar ANACOR.
+
+A análise dos resíduos padronizados ajustados revela os padrões característicos de cada categoria de uma variável segundo o excesso ou falta de ocorrências de sua combinação com cada categoria de outra variável. O interesse está em valores acima de 1.96 no mapa de calor dos resíduos padronizados ajustados.
+
+
+```{r}
+anacor <- CA(tab)
+ca_coordenadas <- rbind(anacor$row$coord, anacor$col$coord)
+
+id_var <- apply(covid_america_weekly[,c(1,9)],
+                MARGIN =  2,
+                FUN = function(x) nlevels(as.factor(x)))
+
+ca_coordenadas_final <- data.frame(ca_coordenadas, 
+                                   Variable = rep(names(id_var), id_var))
+
+ca_coordenadas_final %>% 
+  rownames_to_column() %>% 
+  rename(Category = 1) %>% 
+  ggplot(aes(x = Dim.1, 
+             y = Dim.2, 
+             label = Category, 
+             color = Variable, 
+             shape = Variable)) +
+  geom_point(size = 2) +
+  geom_text_repel(max.overlaps = 100,
+                  size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
+  labs(x = paste("Dimension 1:", paste0(round(anacor$eig[1,2], digits = 2), "%")),
+       y = paste("Dimension 2:", paste0(round(anacor$eig[2,2], digits = 2), "%"))) +
+  scale_color_viridis_d(option = "viridis") +
+  theme(panel.background = element_rect("white"),
+        panel.border = element_rect("NA"),
+        panel.grid = element_line("gray95"),
+        legend.position = "none")
+```
+
+
+```{r}
+load("coords_covid_america_byweek.RData")
+
+coords_covid_america_byweek %>%
+  ggplot() +
+  geom_point(aes(x = Dim.1, y = Dim.2, 
+                 color = country %in% c("L1","L2","L3","L4","L5"), size = 3,
+                 shape = country %in% c("L1","L2","L3","L4","L5"))) +
+  geom_text_repel(aes(x = Dim.1, y = Dim.2, 
+                      label = country),
+                  max.overlaps = 3000) +
+  scale_color_viridis_d() +
+  labs(x = "Dimensão 1",
+       y = "Dimensão 2") +
+  theme(legend.position = "none") -> mapas_perceptuais
+
+mapa_animado <- mapas_perceptuais + transition_time(week) +
+  enter_fade() +
+  labs(title = "Week: {frame_time}") +
+  exit_fade()
+theme_set(theme_bw())
+
+animate(mapa_animado, renderer = gifski_renderer(), fps = 1)
+```
+
