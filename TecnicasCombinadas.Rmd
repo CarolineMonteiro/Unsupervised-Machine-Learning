@@ -1,0 +1,145 @@
+---
+title: "ACM, PCA e Clusterização"
+author: "Caroline Hernandes Monteiro"
+date: "27/07/2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(plotly)
+library(ggrepel)
+library(reshape2)
+library(sjPlot)
+library(FactoMineR)
+library(knitr)
+library(kableExtra)
+library(factoextra)
+library(viridis)
+library(plot3D)
+library(gifski)
+library(gganimate)
+library(cabootcrs)
+```
+
+
+```{r}
+load("notasfatorial.RData")
+notasfatorial %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = TRUE, 
+                font_size = 12)
+
+load(file = "perfil_investidor_aplicacao.RData")
+perfil_investidor_aplicacao %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = TRUE, 
+                font_size = 12)
+
+base_dados <- notasfatorial %>% 
+  left_join(perfil_investidor_aplicacao, by = "estudante")
+base_dados %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = TRUE, 
+                font_size = 12)
+```
+
+
+Para avaliar se é possível usar ou não uma ACM, deve-se verificar o teste chi-quadrado entre os cruzamentos de variáveis a serem consideradas.
+
+```{r}
+tab_perfil_aplicacao <- table(perfil_investidor_aplicacao$perfil,
+                              perfil_investidor_aplicacao$aplicacao)
+qui2_perfil_aplicacao <- chisq.test(tab_perfil_aplicacao) # p-valor < 0.05
+
+tab_perfil_estadocivil <- table(perfil_investidor_aplicacao$perfil,
+                                perfil_investidor_aplicacao$estado_civil)
+qui2_perfil_estadocivil <- chisq.test(tab_perfil_estadocivil) # p-valor < 0.05
+
+tab_aplicacao_estadocivil <- table(perfil_investidor_aplicacao$aplicacao,
+                                   perfil_investidor_aplicacao$estado_civil)
+qui2_aplicacao_estadocivil <- chisq.test(tab_aplicacao_estadocivil) # p-valor < 0.05
+```
+
+Como p-valor < 0.05 para todas as associações, temos ACM.
+
+
+```{r}
+ACM <- MCA(base_dados[, 6:8], method = "Indicador")
+base_dados[c("D1","D2","D3","D4","D5")] <- data.frame(ACM$ind$coord)
+
+base_dados <- base_dados[,-c(6:8)]
+```
+
+Visto que as coordenadas das variáveis categóricas as representam, podemos remover essas variáveis.
+
+
+Estabelecendo uma PCA:
+
+Para usar a função prcomp(), os dados precisam estar padronizados.
+
+```{r}
+base_dados_std <- base_dados %>% 
+  column_to_rownames("estudante") %>% 
+  scale() %>% 
+  data.frame()
+
+AFCP <- prcomp(base_dados_std[,1:4])
+
+scores_fatoriais <- t(AFCP$rotation)/AFCP$sdev
+```
+
+
+Como os autovalores de F1 e F2 são maiores que 1, estes serão os fatores utilizados como indicadores.
+
+Calculando os scores fatoriais:
+
+```{r}
+score_D1 <- scores_fatoriais[1,]
+score_D2 <- scores_fatoriais[2,]
+
+F1 <- t(apply(base_dados_std[,1:4], 1, function(x) x * score_D1))
+F2 <- t(apply(base_dados_std[,1:4], 1, function(x) x * score_D2))
+
+F1 <- data.frame(F1) %>%
+  mutate(fator1 = rowSums(.) * 1)
+F2 <- data.frame(F1) %>%
+  mutate(fator2 = rowSums(.) * 1)
+
+base_dados_std[c("F1","F2")] <- cbind(F1$fator1, F2$fator2)
+
+base_dados_std <- base_dados_std[,-c(1:4)] 
+```
+
+
+Estabelecendo a Clusterização:
+
+```{r}
+cluster_estudantes <- kmeans(base_dados_std, centers = 2)
+fviz_cluster(cluster_estudantes, data = base_dados_std)
+
+plot <- fviz_cluster(cluster_estudantes, data = base_dados_std)
+
+fviz_cluster_adaptado(object = cluster_estudantes,
+                      data = base_dados_std)
+
+coordenadas <- fviz_cluster_adaptado(object = cluster_estudantes,
+                                     data = base_dados_std)
+
+scatter3D(x = coordenadas$data$x, 
+          y = coordenadas$data$y, 
+          z = coordenadas$data$Dim.3, 
+          zlim = c(-3,3),
+          ylim = c(-3,3),
+          xlim = c(-3,3),
+          pch = 19,
+          bty = "b2",
+          colvar = as.numeric(coordenadas[["data"]][["cluster"]]),
+          col = viridis(200),
+          phi = 30,
+          theta = 80)
+```
+
